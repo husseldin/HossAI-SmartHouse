@@ -17,6 +17,8 @@ import AutomationsPage from './pages/AutomationsPage';
 import { AutomationFlowEditorPage } from './pages/AutomationFlowEditorPage';
 import SettingsPage from './pages/SettingsPage';
 import { HubsPage } from './pages/HubsPage';
+import { SystemHealthPage } from './pages/SystemHealthPage';
+import { LogsPage } from './pages/LogsPage';
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -60,6 +62,8 @@ function App() {
             <Route path="automations" element={<AutomationsPage />} />
             <Route path="automations/flow-editor" element={<AutomationFlowEditorPage />} />
             <Route path="hubs" element={<HubsPage />} />
+            <Route path="system/health" element={<SystemHealthPage />} />
+            <Route path="system/logs" element={<LogsPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
