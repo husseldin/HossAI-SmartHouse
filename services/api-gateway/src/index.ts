@@ -12,6 +12,7 @@ import authRoutes from './routes/auth';
 import proxyRoutes from './routes/proxy';
 import healthRoutes from './routes/health';
 import { hubRoutes } from './routes/hubs';
+import { agentRoutes } from './routes/agent';
 import { authMiddleware } from './middleware/auth';
 
 const logger = createLogger('api-gateway');
@@ -47,6 +48,7 @@ async function start() {
     await server.register(healthRoutes, { prefix: '/health' });
     await server.register(authRoutes, { prefix: '/api/auth' });
     await server.register(hubRoutes, { prefix: '/api' });
+    await server.register(agentRoutes, { prefix: '/api' });
     await server.register(proxyRoutes, { prefix: '/api' });
 
     // Start server
