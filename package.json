@@ -1,0 +1,64 @@
+{
+  "name": "smart-home-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-first smart home and network control platform",
+  "workspaces": [
+    "services/*",
+    "services/shared",
+    "edge-agent",
+    "web-ui"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:services && npm run install:ui",
+    "install:services": "npm install --workspace=services/api-gateway --workspace=services/device-service --workspace=services/network-service --workspace=services/security-service --workspace=services/automation-engine --workspace=services/integration-manager --workspace=services/shared",
+    "install:ui": "npm install --workspace=web-ui",
+    "install:edge": "npm install --workspace=edge-agent",
+    "dev": "docker-compose -f docker-compose.dev.yml up",
+    "dev:services": "concurrently \"npm run dev --workspace=services/api-gateway\" \"npm run dev --workspace=services/device-service\" \"npm run dev --workspace=services/network-service\" \"npm run dev --workspace=services/security-service\" \"npm run dev --workspace=services/automation-engine\" \"npm run dev --workspace=services/integration-manager\"",
+    "dev:ui": "npm run dev --workspace=web-ui",
+    "build": "npm run build:services && npm run build:ui",
+    "build:services": "npm run build --workspaces --if-present",
+    "build:ui": "npm run build --workspace=web-ui",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspaces --if-present",
+    "test:integration": "npm run test:integration --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "db:migrate": "npm run db:migrate --workspace=services/device-service",
+    "db:seed": "npm run db:seed --workspace=services/device-service",
+    "db:studio": "npm run db:studio --workspace=services/device-service",
+    "generate:certs": "./scripts/generate-certs.sh",
+    "setup:dev": "./scripts/setup-dev.sh",
+    "backup": "./scripts/backup.sh",
+    "restore": "./scripts/restore.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "private"
+  },
+  "author": "Private",
+  "license": "UNLICENSED"
+}

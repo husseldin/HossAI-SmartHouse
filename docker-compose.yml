@@ -1,0 +1,237 @@
+version: '3.8'
+
+services:
+  # =================================================================
+  # DATABASE & INFRASTRUCTURE
+  # =================================================================
+
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: smarthome-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smarthome}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-smarthome_platform}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smarthome}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: smarthome-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smarthome-mosquitto
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_TLS_PORT:-8883}:8883"
+      - "${MQTT_WS_PORT:-9001}:9001"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  # =================================================================
+  # BACKEND SERVICES
+  # =================================================================
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: smarthome-api-gateway
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_GATEWAY_PORT: 8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smarthome}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-smarthome_platform}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION}
+      JWT_EXPIRY: ${JWT_EXPIRY:-15m}
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-30d}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60000}
+    ports:
+      - "${API_GATEWAY_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  device-service:
+    build:
+      context: .
+      dockerfile: services/device-service/Dockerfile
+    container_name: smarthome-device-service
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DEVICE_SERVICE_PORT: 8001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smarthome}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-smarthome_platform}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+    ports:
+      - "${DEVICE_SERVICE_PORT:-8001}:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  network-service:
+    build:
+      context: .
+      dockerfile: services/network-service/Dockerfile
+    container_name: smarthome-network-service
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NETWORK_SERVICE_PORT: 8002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smarthome}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-smarthome_platform}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+      SCAN_DEFAULT_RANGES: ${SCAN_DEFAULT_RANGES:-192.168.1.0/24}
+    ports:
+      - "${NETWORK_SERVICE_PORT:-8002}:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-home-net
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  security-service:
+    build:
+      context: .
+      dockerfile: services/security-service/Dockerfile
+    container_name: smarthome-security-service
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      SECURITY_SERVICE_PORT: 8003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smarthome}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-smarthome_platform}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+    ports:
+      - "${SECURITY_SERVICE_PORT:-8003}:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  automation-engine:
+    build:
+      context: .
+      dockerfile: services/automation-engine/Dockerfile
+    container_name: smarthome-automation-engine
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      AUTOMATION_ENGINE_PORT: 8004
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smarthome}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-smarthome_platform}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+    ports:
+      - "${AUTOMATION_ENGINE_PORT:-8004}:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+  integration-manager:
+    build:
+      context: .
+      dockerfile: services/integration-manager/Dockerfile
+    container_name: smarthome-integration-manager
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      INTEGRATION_MANAGER_PORT: 8005
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smarthome}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-smarthome_platform}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-CHANGE_ME_32_CHAR_KEY_HERE!!!!!!}
+    ports:
+      - "${INTEGRATION_MANAGER_PORT:-8005}:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
+networks:
+  smart-home-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  mosquitto-data:
+  mosquitto-logs:

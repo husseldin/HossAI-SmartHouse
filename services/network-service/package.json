@@ -1,0 +1,21 @@
+{
+  "name": "@smart-home/network-service",
+  "version": "1.0.0",
+  "description": "Network scanning and inventory service",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@smart-home/shared": "*",
+    "fastify": "^4.25.1",
+    "node-nmap": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.2"
+  }
+}

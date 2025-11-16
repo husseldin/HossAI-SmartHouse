@@ -1,0 +1,302 @@
+// Smart Home Platform - Database Schema
+// PostgreSQL + TimescaleDB
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =================================================================
+// USERS & AUTHENTICATION
+// =================================================================
+
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  role          String   @default("user") // admin, user, readonly, agent
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastLogin     DateTime? @map("last_login")
+
+  sessions      Session[]
+  automationRules AutomationRule[]
+  scanJobs      ScanJob[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  token        String   @unique
+  refreshToken String?  @unique @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// =================================================================
+// DEVICES & INTEGRATIONS
+// =================================================================
+
+model Integration {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // mqtt, http, ssh, zigbee, zwave, etc.
+  protocol    String
+  config      Json
+  credentials Json?    // Encrypted
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  devices Device[]
+
+  @@map("integrations")
+}
+
+model EdgeHub {
+  id            String   @id @default(uuid())
+  name          String
+  location      String
+  ipAddress     String   @map("ip_address")
+  capabilities  Json     // Array of supported protocols
+  status        String   @default("offline") // online, offline
+  lastHeartbeat DateTime @default(now()) @map("last_heartbeat")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  devices Device[]
+
+  @@map("edge_hubs")
+}
+
+model Device {
+  id            String   @id @default(uuid())
+  name          String
+  type          String   // light, switch, plug, sensor, etc.
+  status        String   @default("unknown") // online, offline, unavailable
+  integrationId String   @map("integration_id")
+  edgeHubId     String?  @map("edge_hub_id")
+  capabilities  Json     // Array of capabilities
+  metadata      Json     @default("{}")
+  room          String?
+  floor         String?
+  tags          String[] @default([])
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  edgeHub     EdgeHub?    @relation(fields: [edgeHubId], references: [id], onDelete: SetNull)
+
+  deviceStates DeviceState[]
+  deviceEvents DeviceEvent[]
+
+  @@index([integrationId])
+  @@index([edgeHubId])
+  @@index([status])
+  @@index([type])
+  @@map("devices")
+}
+
+model DeviceState {
+  id        String   @id @default(uuid())
+  deviceId  String   @map("device_id")
+  state     Json
+  timestamp DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([timestamp])
+  @@map("device_states")
+}
+
+model DeviceEvent {
+  id        String   @id @default(uuid())
+  deviceId  String   @map("device_id")
+  eventType String   @map("event_type")
+  payload   Json
+  timestamp DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("device_events")
+}
+
+// =================================================================
+// NETWORK & SCANNING
+// =================================================================
+
+model NetworkDevice {
+  id         String   @id @default(uuid())
+  ipAddress  String   @unique @map("ip_address")
+  macAddress String   @unique @map("mac_address")
+  hostname   String?
+  vendor     String?
+  deviceType String   @default("unknown") @map("device_type")
+  metadata   Json     @default("{}")
+  firstSeen  DateTime @default(now()) @map("first_seen")
+  lastSeen   DateTime @default(now()) @map("last_seen")
+  status     String   @default("offline") // online, offline
+
+  scanResults  ScanResult[]
+  trafficStats TrafficStat[]
+
+  @@index([ipAddress])
+  @@index([macAddress])
+  @@index([status])
+  @@map("network_devices")
+}
+
+model ScanJob {
+  id          String    @id @default(uuid())
+  scanType    String    @map("scan_type") // discovery, port_scan, vulnerability
+  targets     Json      // Array of IP addresses or ranges
+  status      String    @default("pending") // pending, running, completed, failed
+  initiatedBy String    @map("initiated_by")
+  config      Json?
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User         @relation(fields: [initiatedBy], references: [id])
+  scanResults ScanResult[]
+
+  @@index([status])
+  @@index([scanType])
+  @@index([createdAt])
+  @@map("scan_jobs")
+}
+
+model ScanResult {
+  id              String   @id @default(uuid())
+  scanJobId       String   @map("scan_job_id")
+  networkDeviceId String   @map("network_device_id")
+  openPorts       Json?    @map("open_ports")
+  services        Json?
+  osFingerprint   String?  @map("os_fingerprint")
+  timestamp       DateTime @default(now())
+
+  scanJob       ScanJob        @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+  networkDevice NetworkDevice  @relation(fields: [networkDeviceId], references: [id], onDelete: Cascade)
+  vulnerabilities Vulnerability[]
+
+  @@index([scanJobId])
+  @@index([networkDeviceId])
+  @@index([timestamp])
+  @@map("scan_results")
+}
+
+model TrafficStat {
+  id              String   @id @default(uuid())
+  networkDeviceId String   @map("network_device_id")
+  bytesSent       BigInt   @default(0) @map("bytes_sent")
+  bytesReceived   BigInt   @default(0) @map("bytes_received")
+  topDestinations Json     @default("[]") @map("top_destinations")
+  protocolBreakdown Json   @default("{}") @map("protocol_breakdown")
+  windowStart     DateTime @map("window_start")
+  windowEnd       DateTime @map("window_end")
+
+  networkDevice NetworkDevice @relation(fields: [networkDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([networkDeviceId])
+  @@index([windowStart])
+  @@map("traffic_stats")
+}
+
+// =================================================================
+// SECURITY & VULNERABILITIES
+// =================================================================
+
+model Vulnerability {
+  id              String   @id @default(uuid())
+  scanResultId    String   @map("scan_result_id")
+  cveId           String?  @map("cve_id")
+  severity        String   // critical, high, medium, low, info
+  description     String   @db.Text
+  affectedService Json     @map("affected_service")
+  recommendation  String?  @db.Text
+  acknowledged    Boolean  @default(false)
+  detectedAt      DateTime @default(now()) @map("detected_at")
+
+  scanResult ScanResult @relation(fields: [scanResultId], references: [id], onDelete: Cascade)
+
+  @@index([scanResultId])
+  @@index([severity])
+  @@index([acknowledged])
+  @@map("vulnerabilities")
+}
+
+model Alert {
+  id           String   @id @default(uuid())
+  type         String   // new_device, device_offline, vulnerability_detected, etc.
+  severity     String   // critical, high, medium, low, info
+  source       String   // Service name
+  sourceId     String   @map("source_id")
+  message      String   @db.Text
+  details      Json     @default("{}")
+  acknowledged Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([severity])
+  @@index([acknowledged])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// =================================================================
+// AUTOMATION & RULES
+// =================================================================
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  createdBy   String   @map("created_by")
+  enabled     Boolean  @default(true)
+  trigger     Json     // { type, config }
+  conditions  Json?    // Array of conditions
+  actions     Json     // Array of actions
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [createdBy], references: [id])
+  automationRuns AutomationRun[]
+
+  @@index([enabled])
+  @@map("automation_rules")
+}
+
+model AutomationRun {
+  id              String    @id @default(uuid())
+  ruleId          String    @map("rule_id")
+  status          String    // running, completed, failed
+  triggerData     Json      @map("trigger_data")
+  actionsExecuted Json      @map("actions_executed")
+  errorLog        String?   @db.Text @map("error_log")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("automation_runs")
+}
