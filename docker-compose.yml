@@ -226,6 +226,23 @@ services:
       - smart-home-net
     restart: unless-stopped
 
+  # =================================================================
+  # WEB UI
+  # =================================================================
+
+  web-ui:
+    build:
+      context: .
+      dockerfile: web-ui/Dockerfile
+    container_name: smarthome-web-ui
+    ports:
+      - "${WEB_UI_PORT:-3000}:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - smart-home-net
+    restart: unless-stopped
+
 networks:
   smart-home-net:
     driver: bridge
