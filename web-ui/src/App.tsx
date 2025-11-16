@@ -15,6 +15,7 @@ import NetworkPage from './pages/NetworkPage';
 import SecurityPage from './pages/SecurityPage';
 import AutomationsPage from './pages/AutomationsPage';
 import SettingsPage from './pages/SettingsPage';
+import { HubsPage } from './pages/HubsPage';
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ function App() {
             <Route path="network" element={<NetworkPage />} />
             <Route path="security" element={<SecurityPage />} />
             <Route path="automations" element={<AutomationsPage />} />
+            <Route path="hubs" element={<HubsPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

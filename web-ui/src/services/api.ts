@@ -327,6 +327,29 @@ class ApiClient {
   }
 
   // =================================================================
+  // EDGE HUBS
+  // =================================================================
+
+  async getHubs(): Promise<any[]> {
+    const { data } = await this.client.get('/api/hubs');
+    return data;
+  }
+
+  async getHub(id: string): Promise<any> {
+    const { data } = await this.client.get(`/api/hubs/${id}`);
+    return data;
+  }
+
+  async updateHub(id: string, updates: any): Promise<any> {
+    const { data } = await this.client.patch(`/api/hubs/${id}`, updates);
+    return data;
+  }
+
+  async deleteHub(id: string): Promise<void> {
+    await this.client.delete(`/api/hubs/${id}`);
+  }
+
+  // =================================================================
   // HEALTH
   // =================================================================
 

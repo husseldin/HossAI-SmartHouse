@@ -14,6 +14,7 @@ import {
   encryptSecret,
   decryptSecret,
 } from '@smart-home/shared';
+import { hubEventHandler } from './hub-event-handler';
 
 const logger = createLogger('integration-manager');
 const db = getPrismaClient();
@@ -224,6 +225,10 @@ async function start() {
     await mqtt.connect();
     logger.info('Connected to MQTT broker');
 
+    // Initialize hub event handler
+    await hubEventHandler.initialize();
+    logger.info('Hub event handler initialized');
+
     await server.listen({ port: PORT, host: HOST });
     logger.info({ port: PORT }, 'Integration Manager started');
   } catch (error) {
@@ -233,6 +238,7 @@ async function start() {
 }
 
 process.on('SIGTERM', async () => {
+  await hubEventHandler.shutdown();
   await mqtt.disconnect();
   await server.close();
   process.exit(0);

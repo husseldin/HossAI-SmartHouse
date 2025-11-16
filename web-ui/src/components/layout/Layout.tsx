@@ -5,6 +5,7 @@ import {
   Network,
   Shield,
   Zap,
+  Cpu,
   Settings,
   LogOut,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Network', href: '/network', icon: Network },
   { name: 'Security', href: '/security', icon: Shield },
   { name: 'Automations', href: '/automations', icon: Zap },
+  { name: 'Edge Hubs', href: '/hubs', icon: Cpu },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

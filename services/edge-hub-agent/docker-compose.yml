@@ -1,0 +1,87 @@
+# Edge Hub Agent - Docker Compose for Raspberry Pi
+# Deploy this on each Raspberry Pi edge hub
+
+version: '3.8'
+
+services:
+  edge-hub-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edge-hub-agent
+    restart: unless-stopped
+
+    # Environment configuration
+    environment:
+      # Hub Identity (CHANGE THESE!)
+      HUB_ID: ${HUB_ID:-edge-hub-01}
+      HUB_NAME: ${HUB_NAME:-Living Room Hub}
+      HUB_LOCATION: ${HUB_LOCATION:-Living Room}
+
+      # Controller Connection (CHANGE THIS!)
+      CONTROLLER_HOST: ${CONTROLLER_HOST:-192.168.1.100}
+      CONTROLLER_MQTT_PORT: ${CONTROLLER_MQTT_PORT:-1883}
+      CONTROLLER_API_URL: ${CONTROLLER_API_URL:-http://192.168.1.100:8000}
+
+      # MQTT Authentication
+      MQTT_USERNAME: ${MQTT_USERNAME:-edge-hub}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-changeme}
+
+      # mTLS (optional, for production)
+      MQTT_USE_TLS: ${MQTT_USE_TLS:-false}
+      MQTT_CA_CERT: ${MQTT_CA_CERT:-/certs/ca.crt}
+      MQTT_CLIENT_CERT: ${MQTT_CLIENT_CERT:-/certs/client.crt}
+      MQTT_CLIENT_KEY: ${MQTT_CLIENT_KEY:-/certs/client.key}
+
+      # Health Monitoring
+      HEALTH_CHECK_INTERVAL: ${HEALTH_CHECK_INTERVAL:-30000}
+      HEARTBEAT_INTERVAL: ${HEARTBEAT_INTERVAL:-10000}
+
+      # Protocol Adapters
+      ENABLE_ZIGBEE: ${ENABLE_ZIGBEE:-true}
+      ENABLE_ZWAVE: ${ENABLE_ZWAVE:-true}
+      ENABLE_BLUETOOTH: ${ENABLE_BLUETOOTH:-false}
+
+      # Zigbee Configuration
+      ZIGBEE_PORT: ${ZIGBEE_PORT:-/dev/ttyUSB0}
+      ZIGBEE_ADAPTER: ${ZIGBEE_ADAPTER:-ezsp}
+      ZIGBEE_CHANNEL: ${ZIGBEE_CHANNEL:-11}
+      ZIGBEE_PAN_ID: ${ZIGBEE_PAN_ID:-0x1a62}
+
+      # Z-Wave Configuration
+      ZWAVE_PORT: ${ZWAVE_PORT:-/dev/ttyACM0}
+
+      # Local API
+      PORT: ${PORT:-8080}
+      HOST: ${HOST:-0.0.0.0}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    # Device access for USB adapters
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0  # Zigbee adapter
+      - /dev/ttyACM0:/dev/ttyACM0  # Z-Wave adapter
+
+    # Privileged mode for hardware access
+    privileged: true
+
+    # Network mode for device discovery
+    network_mode: host
+
+    # Volumes for persistent data and certificates
+    volumes:
+      - ./data:/app/data
+      - ./certs:/certs:ro
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: If not using host network mode, define network
+# networks:
+#   edge-hub-net:
+#     driver: bridge
